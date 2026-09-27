@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>남산 하늘숲길 & 순환버스 완벽 나들이 가이드</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Pretendard & Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard', 'Inter', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* 맵 컨테이너 및 뷰포트 비율 (상단 약 45~48vh) */
+    .map-wrapper {
+      position: relative;
+      width: 100%;
+      height: 44vh;
+      min-height: 330px;
+      max-height: 480px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+
+    #vectorMapContainer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #vectorMapContainer {
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      overflow: hidden;
+      cursor: grab;
+      user-select: none;
+    }
+    #vectorMapContainer:active {
+      cursor: grabbing;
+    }
+
+    /* 탭 스크롤바 숨김 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* 탭 콘텐츠 애니메이션 */
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .tab-content.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* SVG 인터랙티브 마커 호버 및 애니메이션 */
+    .svg-node {
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+    .svg-node:hover {
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+    }
+    .pulse-ring {
+      animation: svgPulse 2s infinite;
+    }
+    @keyframes svgPulse {
+      0% { r: 16; opacity: 0.8; }
+      70% { r: 28; opacity: 0; }
+      100% { r: 28; opacity: 0; }
+    }
+    .pulse-path {
+      stroke-dasharray: 8 6;
+      animation: dashMove 30s linear infinite;
+    }
+    @keyframes dashMove {
+      to { stroke-dashoffset: -500; }
+    }
+
+    /* 지도 내부 레이어가 고정 헤더와 탭을 덮지 않도록 제한합니다. */
+    .map-section { position: relative; isolation: isolate; z-index: 0; }
+    #courseNav { top: var(--header-height, 53px); }
+    #mapNotice { width: max-content; max-width: calc(100% - 24px); pointer-events: none; }
+    #mapNotice > span:first-child { flex-shrink: 0; }
+    #btnVectorZoom { display: none; }
+    #vectorMapContainer.vector-zoomed { overflow: auto; touch-action: pan-x pan-y pinch-zoom; }
+    #vectorMapContainer.vector-zoomed svg { width: 1000px; height: 600px; max-width: none; margin: 0 auto; }
+
+    @media (max-width: 639px) {
+      #pageHeaderInner { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+      #pageHeaderInner > div:first-child { min-width: 0; }
+      #pageHeaderInner h1 { font-size: 15px; }
+      #pageHeaderActions { width: 100%; }
+      #pageHeaderActions button { flex: 1; justify-content: center; min-height: 44px; white-space: nowrap; }
+      #btnResetView span { display: inline; }
+      .map-wrapper { height: 38vh; height: 38svh; min-height: 250px; max-height: 340px; }
+      #mapNotice { border-radius: 12px; line-height: 1.5; }
+      #mapLegend { position: static; width: 100%; border-radius: 0; border-width: 0 0 1px; box-shadow: none; }
+      #mapLegend > div:last-child { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      #mapLegend button { min-height: 44px; margin: 0; align-items: flex-start; padding: 6px 0; }
+      #mapLegend button > span:first-child { flex-shrink: 0; margin-top: 5px; }
+      .tab-btn { flex-shrink: 0; min-height: 44px; font-size: 13px; }
+      main { padding: 16px 12px; }
+      .tab-content .text-xs { font-size: 14px; line-height: 1.6; }
+      .tab-content button, .tab-content label { min-height: 44px; }
+      .todo-item { width: 20px; height: 20px; flex-shrink: 0; }
+      #transitLinks summary { line-height: 1.6; }
+      #transitLinks summary span { display: block; margin-left: 0; }
+      #transitLinks p { font-size: 13px; line-height: 1.6; }
+      #transitLinks h3, #transitLinks h4 { font-size: 14px; }
+      #transitLinks a { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px; min-height: 44px; font-size: 12px; }
+      #btnVectorZoom { display: block; }
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
+
+  <header id="pageHeader" class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+    <div id="pageHeaderInner" class="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-500 flex items-center justify-center text-white shadow-xs">
+          <i class="fa-solid fa-tree text-base"></i>
+        </div>
+        <div>
+          <h1 class="text-sm sm:text-base font-bold text-slate-900 leading-tight">남산 하늘숲길 나들이 가이드</h1>
+          <p class="text-[11px] text-slate-500 font-medium hidden sm:block">서울역 출발 ➔ 남산도서관 ➔ 하늘숲길 ➔ N서울타워 ➔ 순환01A 복귀</p>
+        </div>
+      </div>
+
+      <div id="pageHeaderActions" class="flex items-center space-x-2">
+        <!-- 안내 지도 확대 / 전체보기 -->
+        <button id="btnHeaderVectorZoom" type="button" aria-controls="vectorMapContainer" aria-pressed="false" class="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg flex items-center gap-1.5 transition border border-slate-300">
+          <i id="headerVectorZoomIcon" class="fa-solid fa-magnifying-glass-plus text-emerald-600" aria-hidden="true"></i>
+          <span id="headerVectorZoomText">지도 크게 보기</span>
+        </button>
+
+        <!-- 전체 뷰 리셋 -->
+        <button id="btnResetView" title="지도 전체보기" class="px-2.5 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-expand"></i>
+          <span class="hidden sm:inline">전체 경로</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="mapSection" class="map-section">
+  <div class="map-wrapper border-b border-slate-300">
+
+    <!-- 코스와 주요 지점을 표시하는 인터랙티브 SVG 안내 지도 -->
+    <div id="vectorMapContainer">
+      <svg id="vectorMapSvg" viewBox="0 0 1000 600" class="w-full h-full" preserveAspectRatio="xMidYMid meet">
+        <!-- 배경 지형 음영 및 도로망 -->
+        <defs>
+          <linearGradient id="namsanHill" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#bbf7d0" stop-opacity="0.8"/>
+            <stop offset="60%" stop-color="#86efac" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#4ade80" stop-opacity="0.95"/>
+          </linearGradient>
+          <filter id="mapShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.12"/>
+          </filter>
+        </defs>
+
+        <!-- 기본 도로망 배경 그리드 -->
+        <rect width="1000" height="600" fill="#f8fafc"/>
+
+        <!-- 한강 영역 표시 (남쪽) -->
+        <path d="M 0 540 Q 300 520 600 550 T 1000 540 L 1000 600 L 0 600 Z" fill="#e0f2fe" opacity="0.6"/>
+        <text x="80" y="575" fill="#0284c7" font-size="12" font-weight="600">한강 방면</text>
+
+        <!-- 남산 산악 지형 폴리곤 -->
+        <path d="M 330 420 Q 280 260 380 150 Q 520 90 740 120 Q 890 200 860 360 Q 780 470 540 460 Z" fill="url(#namsanHill)" filter="url(#mapShadow)"/>
+        <text x="650" y="270" fill="#14532d" font-size="28" font-weight="800" opacity="0.18" letter-spacing="6">남 산 (NAMSAN)</text>
+
+        <!-- 주요 일반 도로선 (퇴계로/소월로 등) -->
+        <path d="M 140 180 Q 260 170 380 150 T 680 120 T 920 150" fill="none" stroke="#cbd5e1" stroke-width="12" stroke-linecap="round"/>
+        <path d="M 140 180 Q 260 170 380 150 T 680 120 T 920 150" fill="none" stroke="#f1f5f9" stroke-width="8" stroke-linecap="round"/>
+        <text x="210" y="155" fill="#64748b" font-size="11" font-weight="600">퇴계로 / 명동 방면</text>
+
+        <!-- 소월로 (서울역 ➔ 남산도서관) -->
+        <path d="M 150 250 Q 220 320 340 350 Q 420 370 430 350" fill="none" stroke="#cbd5e1" stroke-width="10" stroke-linecap="round"/>
+        <text x="235" y="325" fill="#64748b" font-size="11" font-weight="600">소월로</text>
+
+        <!-- 남측순환로 (타워 ➔ 남대문 방면) -->
+        <path d="M 720 220 Q 820 280 750 390 Q 640 440 450 370 Q 380 340 320 230" fill="none" stroke="#cbd5e1" stroke-width="10" stroke-linecap="round"/>
+
+        <!-- 코스 1단계: 서울역 ➔ 남산도서관 버스 노선 (파란색) -->
+        <path id="svgPathBus1" class="pulse-path" d="M 150 250 C 180 270 250 320 340 350 L 430 350" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round"/>
+
+        <!-- 코스 2단계: 남산도서관 ➔ 하늘숲길 무장애 데크로 ➔ N서울타워 (에메랄드 녹색) -->
+        <!-- 지그재그 무장애 목재 덱 형상 반영 -->
+        <path id="svgPathTrail" d="M 430 350 Q 450 320 480 340 T 520 300 T 570 310 T 620 260 T 670 240 L 720 220" fill="none" stroke="#16a34a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <!-- 코스 4단계: N서울타워 ➔ 순환01A 버스 ➔ 남대문시장 ➔ 서울역 복귀 (주황색) -->
+        <path id="svgPathBus2" class="pulse-path" d="M 720 220 C 820 270 780 410 650 430 C 530 445 440 380 350 250 L 300 200 C 240 210 180 225 150 250" fill="none" stroke="#ea580c" stroke-width="5" stroke-linecap="round"/>
+
+        <!-- ================= 마커 노드 렌더링 ================= -->
+
+        <!-- 1. 서울역 노드 -->
+        <g class="svg-node" onclick="handleSvgNodeClick('seoulStation')" transform="translate(150, 250)">
+          <circle class="pulse-ring" fill="#2563eb" opacity="0.3"/>
+          <circle r="18" fill="#1e293b" stroke="#ffffff" stroke-width="3" filter="url(#mapShadow)"/>
+          <text text-anchor="middle" y="5" fill="#fff" font-size="12" font-family="FontAwesome">&#xf238;</text>
+          <rect x="-42" y="24" width="84" height="22" rx="6" fill="#1e293b" opacity="0.95"/>
+          <text text-anchor="middle" y="39" fill="#fff" font-size="11" font-weight="700">서울역 (출발)</text>
+          <text text-anchor="middle" y="58" fill="#2563eb" font-size="10" font-weight="700">🚌 402/405 탑승</text>
+        </g>
+
+        <!-- 2. 남산도서관 정류장 노드 -->
+        <g class="svg-node" onclick="handleSvgNodeClick('namsanLibrary')" transform="translate(430, 350)">
+          <circle class="pulse-ring" fill="#2563eb" opacity="0.3"/>
+          <circle r="16" fill="#2563eb" stroke="#ffffff" stroke-width="3" filter="url(#mapShadow)"/>
+          <text text-anchor="middle" y="5" fill="#fff" font-size="11" font-family="FontAwesome">&#xf02d;</text>
+          <rect x="-45" y="22" width="90" height="20" rx="5" fill="#2563eb"/>
+          <text text-anchor="middle" y="36" fill="#fff" font-size="10" font-weight="700">남산도서관 하차</text>
+        </g>
+
+        <!-- 3. 소월정원 (하늘숲길 입구) 노드 -->
+        <g class="svg-node" onclick="handleSvgNodeClick('sowolGarden')" transform="translate(470, 325)">
+          <circle r="14" fill="#16a34a" stroke="#ffffff" stroke-width="2.5" filter="url(#mapShadow)"/>
+          <text text-anchor="middle" y="4" fill="#fff" font-size="10" font-family="FontAwesome">&#xf54b;</text>
+          <rect x="-50" y="-30" width="100" height="20" rx="5" fill="#166534"/>
+          <text text-anchor="middle" y="-16" fill="#fff" font-size="10" font-weight="700">소월정원 (숲길시작)</text>
+        </g>
+
+        <!-- 4. N서울타워 정상 노드 -->
+        <g class="svg-node" onclick="handleSvgNodeClick('nSeoulTower')" transform="translate(720, 220)">
+          <circle class="pulse-ring" fill="#9333ea" opacity="0.3"/>
+          <circle r="20" fill="#9333ea" stroke="#ffffff" stroke-width="3" filter="url(#mapShadow)"/>
+          <text text-anchor="middle" y="6" fill="#fff" font-size="14" font-family="FontAwesome">&#xf519;</text>
+          <rect x="-50" y="-36" width="100" height="24" rx="6" fill="#6b21a8"/>
+          <text text-anchor="middle" y="-20" fill="#fff" font-size="11" font-weight="700">N서울타워 정상</text>
+          <rect x="-45" y="26" width="90" height="20" rx="5" fill="#ea580c"/>
+          <text text-anchor="middle" y="40" fill="#fff" font-size="10" font-weight="700">🚌 01A 종점탑승</text>
+        </g>
+
+        <!-- 5. 남대문시장 하차 정류장 노드 -->
+        <g class="svg-node" onclick="handleSvgNodeClick('namdaemunMarket')" transform="translate(300, 200)">
+          <circle r="15" fill="#ea580c" stroke="#ffffff" stroke-width="2.5" filter="url(#mapShadow)"/>
+          <text text-anchor="middle" y="4" fill="#fff" font-size="10" font-family="FontAwesome">&#xf207;</text>
+          <rect x="-45" y="-28" width="90" height="20" rx="5" fill="#c2410c"/>
+          <text text-anchor="middle" y="-14" fill="#fff" font-size="10" font-weight="700">남대문시장 하차</text>
+          <text text-anchor="middle" y="28" fill="#475569" font-size="9" font-weight="700">🚶 도보 7분 서울역</text>
+        </g>
+
+        <!-- 하늘숲길 코스 구간 라벨 -->
+        <g transform="translate(560, 260)">
+          <rect x="-70" y="-12" width="140" height="24" rx="12" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+          <text text-anchor="middle" y="4" fill="#166534" font-size="11" font-weight="700">🌲 무장애 데크길 1.45km</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- 플로팅 알림 레이블 (지도 상단 중앙) -->
+    <div id="mapNotice" class="hidden absolute top-3 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 text-white text-xs px-3.5 py-1.5 rounded-full shadow-lg items-center gap-2 backdrop-blur-xs">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+      <span id="mapNoticeText">구간 정보</span>
+    </div>
+
+    <button id="btnVectorZoom" type="button" aria-controls="vectorMapContainer" aria-pressed="false" class="absolute bottom-3 left-3 z-[400] min-h-[44px] rounded-xl border border-slate-300 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">지도 크게 보기</button>
+  </div>
+
+    <!-- 우측 하단 미니 범례 카드 -->
+    <div id="mapLegend" class="absolute bottom-3 right-3 z-[400] bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-slate-200 shadow-md text-xs">
+      <div class="font-bold text-slate-800 mb-1 flex items-center justify-between gap-3">
+        <span class="flex items-center gap-1.5"><i class="fa-solid fa-route text-slate-500"></i> 코스 라인</span>
+        <span id="mapEngineBadge" class="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold">안내 지도</span>
+      </div>
+      <div class="space-y-1 text-[11px]">
+        <button type="button" class="flex items-center gap-2 text-left cursor-pointer hover:opacity-80" onclick="switchTab('tab2')">
+          <span class="w-3.5 h-1.5 bg-blue-600 rounded-full inline-block"></span>
+          <span class="text-slate-700 font-medium">1구간: 버스 402/405 (12분)</span>
+        </button>
+        <button type="button" class="flex items-center gap-2 text-left cursor-pointer hover:opacity-80" onclick="switchTab('tab3')">
+          <span class="w-3.5 h-1.5 bg-emerald-600 rounded-full inline-block"></span>
+          <span class="text-slate-700 font-medium">2구간: 하늘숲길 1.45km (40분)</span>
+        </button>
+        <button type="button" class="flex items-center gap-2 text-left cursor-pointer hover:opacity-80" onclick="switchTab('tab5')">
+          <span class="w-3.5 h-1.5 bg-amber-600 rounded-full inline-block"></span>
+          <span class="text-slate-700 font-medium">4구간: 순환 01A 복귀 (20분)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="courseNav" class="bg-white border-b border-slate-200 sticky z-30 shadow-xs">
+    <div class="max-w-5xl mx-auto px-2">
+      <div class="flex space-x-1.5 overflow-x-auto no-scrollbar py-2">
+        <button onclick="switchTab('tab1')" id="nav-tab1" class="tab-btn active px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition bg-slate-900 text-white shadow-xs">
+          <i class="fa-solid fa-list-check mr-1.5"></i>전체 코스 요약
+        </button>
+        <button onclick="switchTab('tab2')" id="nav-tab2" class="tab-btn px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <span class="w-2 h-2 rounded-full bg-blue-600 inline-block mr-1.5"></span>1구간: 서울역➔도서관
+        </button>
+        <button onclick="switchTab('tab3')" id="nav-tab3" class="tab-btn px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-600 inline-block mr-1.5"></span>2구간: 하늘숲길 걷기
+        </button>
+        <button onclick="switchTab('tab4')" id="nav-tab4" class="tab-btn px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <span class="w-2 h-2 rounded-full bg-purple-600 inline-block mr-1.5"></span>3구간: 타워 맛집&카페
+        </button>
+        <button onclick="switchTab('tab5')" id="nav-tab5" class="tab-btn px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <span class="w-2 h-2 rounded-full bg-amber-600 inline-block mr-1.5"></span>4구간: 순환버스 복귀
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-5xl mx-auto w-full px-4 py-5 flex-1">
+
+    <!-- 공개 교통정보 링크: 기존 지도와 탭 내용은 유지 -->
+    <details id="transitLinks" class="group mb-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+      <summary class="cursor-pointer px-4 py-3 text-sm font-bold text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+        정류장 위치·버스 운행정보 <span class="ml-1 text-[11px] font-medium text-slate-500">402 · 405 · 01A · 01B</span>
+      </summary>
+      <div class="space-y-4 border-t border-slate-100 p-4">
+        <p class="text-xs text-slate-600 leading-relaxed">정류장 위치, 도착 예정시간, 노선별 버스 위치를 새 창에서 확인합니다. 같은 이름의 정류장은 아래 번호와 방면을 함께 확인하세요.</p>
+        <section aria-labelledby="transitRoutesTitle">
+          <h3 id="transitRoutesTitle" class="mb-2 text-xs font-bold text-slate-900">노선·운행정보</h3>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <a href="https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%20402%20%EB%B2%84%EC%8A%A4" target="_blank" rel="noopener noreferrer" aria-label="402번 노선 및 운행정보, 네이버지도 새 창" class="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-center text-xs font-bold text-blue-800 hover:bg-blue-100 transition">
+              402 <span class="font-medium">노선·운행정보</span> <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]" aria-hidden="true"></i>
+            </a>
+            <a href="https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%20405%20%EB%B2%84%EC%8A%A4" target="_blank" rel="noopener noreferrer" aria-label="405번 노선 및 운행정보, 네이버지도 새 창" class="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-center text-xs font-bold text-blue-800 hover:bg-blue-100 transition">
+              405 <span class="font-medium">노선·운행정보</span> <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]" aria-hidden="true"></i>
+            </a>
+            <a href="https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%2001A%20%EB%B2%84%EC%8A%A4" target="_blank" rel="noopener noreferrer" aria-label="01A번 노선 및 운행정보, 네이버지도 새 창" class="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5 text-center text-xs font-bold text-amber-800 hover:bg-amber-100 transition">
+              01A <span class="font-medium">노선·운행정보</span> <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]" aria-hidden="true"></i>
+            </a>
+            <a href="https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%2001B%20%EB%B2%84%EC%8A%A4" target="_blank" rel="noopener noreferrer" aria-label="01B번 노선 및 운행정보, 네이버지도 새 창" class="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5 text-center text-xs font-bold text-amber-800 hover:bg-amber-100 transition">
+              01B <span class="font-medium">노선·운행정보</span> <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]" aria-hidden="true"></i>
+            </a>
+          </div>
+        </section>
+        <section aria-labelledby="transitStopsTitle">
+          <h3 id="transitStopsTitle" class="mb-2 text-xs font-bold text-slate-900">정류장 위치·도착정보</h3>
+          <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <li class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-slate-900 leading-relaxed">서울역버스환승센터</h4>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">02005</span>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">402 탑승 · 중앙차로 5번 승강장 · 장지공영차고지 방면</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <a href="https://map.naver.com/p/bus/bus-station/%EC%84%9C%EC%9A%B8%EC%97%AD%EB%B2%84%EC%8A%A4%ED%99%98%EC%8A%B9%EC%84%BC%ED%84%B0/bus-station/166790" target="_blank" rel="noopener noreferrer" aria-label="서울역버스환승센터 02005 위치 및 도착정보, 네이버지도 새 창" class="rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition">네이버 위치·도착정보 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+                <a href="https://www.google.com/maps/search/?api=1&amp;query=37.555388989%2C126.9727238221" target="_blank" rel="noopener noreferrer" aria-label="서울역버스환승센터 02005 구글지도 위치, 새 창" class="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition">구글 위치 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+              </div>
+            </li>
+            <li class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-slate-900 leading-relaxed">숭례문·서울역4번출구</h4>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">02123</span>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">405 탑승 · 염곡동 방면 (402도 정차)</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <a href="https://map.naver.com/p/bus/bus-station/%EC%84%9C%EC%9A%B8%EC%97%AD%EB%B2%84%EC%8A%A4%ED%99%98%EC%8A%B9%EC%84%BC%ED%84%B0/bus-station/150988" target="_blank" rel="noopener noreferrer" aria-label="숭례문·서울역4번출구 02123 위치 및 도착정보, 네이버지도 새 창" class="rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition">네이버 위치·도착정보 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+                <a href="https://www.google.com/maps/search/?api=1&amp;query=37.5580006528%2C126.9736279452" target="_blank" rel="noopener noreferrer" aria-label="숭례문·서울역4번출구 02123 구글지도 위치, 새 창" class="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition">구글 위치 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+              </div>
+            </li>
+            <li class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-slate-900 leading-relaxed">남산도서관·용산도서관</h4>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">03168</span>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">402·405 하차 · 후암약수터 방면 정류장</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <a href="https://map.naver.com/p/bus/bus-station/%EB%82%A8%EC%82%B0%EC%84%9C%EC%9A%B8%ED%83%80%EC%9B%8C/bus-station/104847" target="_blank" rel="noopener noreferrer" aria-label="남산도서관·용산도서관 03168 위치 및 도착정보, 네이버지도 새 창" class="rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition">네이버 위치·도착정보 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+                <a href="https://www.google.com/maps/search/?api=1&amp;query=37.5520442521%2C126.9811340112" target="_blank" rel="noopener noreferrer" aria-label="남산도서관·용산도서관 03168 구글지도 위치, 새 창" class="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition">구글 위치 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+              </div>
+            </li>
+            <li class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-slate-900 leading-relaxed">남산서울타워</h4>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">03320</span>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">01A·01B 탑승 · 타워 건물 아래 버스 정류장</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <a href="https://map.naver.com/p/bus/bus-station/%EB%82%A8%EC%82%B0%EC%84%9C%EC%9A%B8%ED%83%80%EC%9B%8C/bus-station/112221" target="_blank" rel="noopener noreferrer" aria-label="남산서울타워 03320 위치 및 도착정보, 네이버지도 새 창" class="rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition">네이버 위치·도착정보 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+                <a href="https://www.google.com/maps/search/?api=1&amp;query=37.5510144684%2C126.9911947846" target="_blank" rel="noopener noreferrer" aria-label="남산서울타워 03320 구글지도 위치, 새 창" class="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition">구글 위치 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+              </div>
+            </li>
+            <li class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-slate-900 leading-relaxed">숭례문·남대문시장8번출입구</h4>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">02124</span>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">01A 하차 · 서울역으로 도보 복귀</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <a href="https://map.naver.com/p/bus/bus-station/%EC%88%AD%EB%A1%80%EB%AC%B8.%EB%82%A8%EB%8C%80%EB%AC%B8%EC%8B%9C%EC%9E%A58%EB%B2%88%EC%B6%9C%EC%9E%85%EA%B5%AC/bus-station/104755" target="_blank" rel="noopener noreferrer" aria-label="숭례문·남대문시장8번출입구 02124 위치 및 도착정보, 네이버지도 새 창" class="rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition">네이버 위치·도착정보 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+                <a href="https://www.google.com/maps/search/?api=1&amp;query=37.5588723988%2C126.9759976615" target="_blank" rel="noopener noreferrer" aria-label="숭례문·남대문시장8번출입구 02124 구글지도 위치, 새 창" class="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition">구글 위치 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+              </div>
+            </li>
+            <li class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-slate-900 leading-relaxed">남산도서관·용산도서관</h4>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">03347</span>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">01A·01B 하차 · 도서관에서 환승할 때</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <a href="https://map.naver.com/p/bus/bus-station/%EB%82%A8%EC%82%B0%EC%84%9C%EC%9A%B8%ED%83%80%EC%9B%8C/bus-station/5008113" target="_blank" rel="noopener noreferrer" aria-label="남산도서관·용산도서관 03347 위치 및 도착정보, 네이버지도 새 창" class="rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition">네이버 위치·도착정보 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+                <a href="https://www.google.com/maps/search/?api=1&amp;query=37.552343667%2C126.9818461928" target="_blank" rel="noopener noreferrer" aria-label="남산도서관·용산도서관 03347 구글지도 위치, 새 창" class="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition">구글 위치 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+              </div>
+            </li>
+            <li class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-slate-900 leading-relaxed">남산도서관·용산도서관</h4>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">03167</span>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">402·405 환승 · 백범광장·시청 방면</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <a href="https://map.naver.com/p/bus/bus-station/%EB%82%A8%EC%82%B0%EB%8F%84%EC%84%9C%EA%B4%80/bus-station/104861" target="_blank" rel="noopener noreferrer" aria-label="남산도서관·용산도서관 03167 위치 및 도착정보, 네이버지도 새 창" class="rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition">네이버 위치·도착정보 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+                <a href="https://www.google.com/maps/search/?api=1&amp;query=37.552282%2C126.980835" target="_blank" rel="noopener noreferrer" aria-label="남산도서관·용산도서관 03167 구글지도 위치, 새 창" class="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition">구글 위치 <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i></a>
+              </div>
+            </li>
+          </ul>
+        </section>
+        <p class="rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed"><strong>복귀 정류장 확인:</strong> 본문의 ‘남대문시장·악세사리전문상가’는 현재 01A 노선에서 <strong>‘숭례문·남대문시장8번출입구(02124)’</strong>로 확인하세요.</p>
+        <div class="flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
+          <a href="https://bus.go.kr/" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-700 underline underline-offset-2">서울대중교통 공식 조회</a>
+          <a href="https://www.nseoultower.co.kr/visit/traffic.asp" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-700 underline underline-offset-2">N서울타워 공식 교통안내</a>
+        </div>
+        <p class="text-[11px] text-slate-500 leading-relaxed">공식 조회 화면에서는 노선번호 또는 정류장번호 5자리를 검색하세요. 도착시간과 운행현황은 연결한 서비스에서 실시간으로 확인할 수 있습니다. 정류장 확인: 2026.09.27.</p>
+      </div>
+    </details>
+
+    <!-- 탭 1: 전체 코스 요약 -->
+    <section id="tab1" class="tab-content active space-y-5">
+
+      <!-- 핵심 요약 카드 -->
+      <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-5 shadow-xs">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <span class="bg-emerald-500/20 text-emerald-300 text-xs font-semibold px-2.5 py-1 rounded-md border border-emerald-500/30">서울역 원점회귀 코스</span>
+            <h2 class="text-xl sm:text-2xl font-bold mt-1.5">남산 하늘숲길 나들이 순환 동선</h2>
+          </div>
+          <div class="text-right">
+            <span class="text-slate-300 text-xs">예상 총 소요시간 (식사 포함)</span>
+            <div class="text-2xl font-black text-emerald-400">약 2.5 ~ 3.5시간</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-700/70 text-xs sm:text-sm">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-person-walking text-emerald-400 text-lg"></i>
+            <div>
+              <div class="text-slate-400 text-[11px]">도보 총 거리</div>
+              <div class="font-bold">약 1.8km (데크 1.45km)</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-mountain text-sky-400 text-lg"></i>
+            <div>
+              <div class="text-slate-400 text-[11px]">보행 난이도</div>
+              <div class="font-bold">완만한 무장애 (계단 0개)</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-bus text-amber-400 text-lg"></i>
+            <div>
+              <div class="text-slate-400 text-[11px]">대중교통</div>
+              <div class="font-bold">간선 402/405 + 순환 01A</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-car text-blue-400 text-lg"></i>
+            <div>
+              <div class="text-slate-400 text-[11px]">주차 위치</div>
+              <div class="font-bold">서울역 (롯데마트/공항철도)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 타임라인 순환 흐름도 -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <h3 class="font-bold text-slate-900 text-base mb-4 flex items-center gap-2">
+          <i class="fa-solid fa-route text-blue-600"></i> 한눈에 보는 순환 타임라인
+        </h3>
+
+        <div class="relative border-l-2 border-slate-200 ml-3.5 space-y-6">
+
+          <!-- 1) 서울역 출발 -->
+          <div class="relative pl-6 cursor-pointer group" onclick="switchTab('tab2')">
+            <span class="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 group-hover:scale-110 transition"></span>
+            <div class="flex flex-wrap items-center justify-between gap-1">
+              <span class="font-bold text-sm text-slate-900 group-hover:text-blue-600 transition">1. 서울역 주차 & 버스 탑승 (402/405번)</span>
+              <span class="text-xs bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded">약 12~15분</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-1">서울역 환승센터 5번홈에서 402번(또는 4번출구 405번) 탑승 후 남산도서관 하차</p>
+          </div>
+
+          <!-- 2) 하늘숲길 -->
+          <div class="relative pl-6 cursor-pointer group" onclick="switchTab('tab3')">
+            <span class="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-emerald-600 ring-4 ring-emerald-100 group-hover:scale-110 transition"></span>
+            <div class="flex flex-wrap items-center justify-between gap-1">
+              <span class="font-bold text-sm text-slate-900 group-hover:text-emerald-600 transition">2. 소월정원 진입 ➔ 하늘숲길 무장애 숲 산책</span>
+              <span class="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded">약 35~45분</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-1">도서관 바로 옆 소월정원 입구 ➔ 1.45km 완만한 목재 덱로드 산책 ➔ N서울타워 도착</p>
+          </div>
+
+          <!-- 3) 타워 점심/카페 -->
+          <div class="relative pl-6 cursor-pointer group" onclick="switchTab('tab4')">
+            <span class="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-purple-600 ring-4 ring-purple-100 group-hover:scale-110 transition"></span>
+            <div class="flex flex-wrap items-center justify-between gap-1">
+              <span class="font-bold text-sm text-slate-900 group-hover:text-purple-600 transition">3. N서울타워 정상 식사 & 전망 카페 휴식</span>
+              <span class="text-xs bg-purple-50 text-purple-700 font-semibold px-2 py-0.5 rounded">약 60~80분</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-1">부엉이돈가스(2F) or 한쿡(3F) 점심 식사 ➔ 스타벅스 서울타워점 커피 & 도심 조망</p>
+          </div>
+
+          <!-- 4) 서울역 복귀 -->
+          <div class="relative pl-6 cursor-pointer group" onclick="switchTab('tab5')">
+            <span class="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-amber-600 ring-4 ring-amber-100 group-hover:scale-110 transition"></span>
+            <div class="flex flex-wrap items-center justify-between gap-1">
+              <span class="font-bold text-sm text-slate-900 group-hover:text-amber-600 transition">4. 순환버스 01A 탑승 ➔ 남대문시장 하차 ➔ 서울역 복귀</span>
+              <span class="text-xs bg-amber-50 text-amber-700 font-semibold px-2 py-0.5 rounded">약 20분</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-1">타워 종점에서 순환 01A 탑승 ➔ 남대문시장 하차 ➔ 숭례문 방면 내리막길 도보 7분 서울역 원점회귀</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 주차 정보 & 체크리스트 2열 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 주차 팁 카드 -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+          <h3 class="font-bold text-slate-900 text-sm mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-square-parking text-blue-600"></i> 서울역 주차장 추천 & 꿀팁
+          </h3>
+          <div class="space-y-3 text-xs">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div class="font-bold text-slate-800 flex justify-between">
+                <span>롯데마트 서울역점 주차장</span>
+                <span class="text-blue-600 font-semibold">장보기 할인</span>
+              </div>
+              <p class="text-slate-600 mt-1">3만원 이상 2시간 / 5만원 이상 3시간 무료 주차. 나들이 후 귀가 전 생필품/간식 구매 시 가장 경제적.</p>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div class="font-bold text-slate-800 flex justify-between">
+                <span>서울역 공항철도 주차장 (지하)</span>
+                <span class="text-slate-600">환승 동선 최적</span>
+              </div>
+              <p class="text-slate-600 mt-1">서울역 환승센터 지하 연결통로와 맞닿아 있어 주차 후 지상 5번 버스 승강장으로 가장 빠르게 이동 가능.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 인터랙티브 체크리스트 -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+          <h3 class="font-bold text-slate-900 text-sm mb-3 flex items-center justify-between">
+            <span class="flex items-center gap-2"><i class="fa-solid fa-clipboard-check text-emerald-600"></i> 나들이 필수 준비물</span>
+            <span id="checkProgress" class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">0/4 완료</span>
+          </h3>
+          <div class="space-y-2 text-xs">
+            <label class="flex items-center gap-2.5 p-2 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition">
+              <input type="checkbox" class="todo-item rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+              <span class="text-slate-700">후불 교통카드 or 기후동행카드 (버스 2회 이용)</span>
+            </label>
+            <label class="flex items-center gap-2.5 p-2 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition">
+              <input type="checkbox" class="todo-item rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+              <span class="text-slate-700">편안한 워킹화 / 운동화 (목재 데크 1.45km 걷기)</span>
+            </label>
+            <label class="flex items-center gap-2.5 p-2 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition">
+              <input type="checkbox" class="todo-item rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+              <span class="text-slate-700">가벼운 겉옷 (남산 정상 및 타워 주변 바람 대비)</span>
+            </label>
+            <label class="flex items-center gap-2.5 p-2 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition">
+              <input type="checkbox" class="todo-item rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+              <span class="text-slate-700">남산도서관 화장실 사전 이용 (숲길 진입 전 필수)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 탭 2: 1구간 (서울역 -> 남산도서관) -->
+    <section id="tab2" class="tab-content space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div>
+          <span class="text-blue-600 font-bold text-xs uppercase tracking-wider">Step 01</span>
+          <h2 class="text-xl font-bold text-slate-900">서울역 ➔ 남산도서관 이동 (버스)</h2>
+        </div>
+        <button onclick="focusStepOnMap('step1')" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-location-crosshairs"></i> 지도에서 보기
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 402번 메인 -->
+        <div class="bg-white rounded-2xl p-5 border-2 border-blue-500 shadow-xs relative">
+          <div class="absolute top-0 right-0 bg-blue-600 text-white text-[11px] font-bold px-3 py-1 rounded-bl-xl">
+            가장 추천 (메인)
+          </div>
+          <div class="flex items-center gap-2.5 mb-2">
+            <span class="w-9 h-9 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center text-sm shadow-xs">402</span>
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm">간선 402번 버스</h3>
+              <p class="text-xs text-slate-500">배차간격: 약 8~14분</p>
+            </div>
+          </div>
+
+          <div class="mt-3 space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div><strong class="text-slate-800">탑승 위치:</strong> 서울역 버스환승센터 <span class="text-blue-600 font-bold">5번 승강장 (중앙차로)</span></div>
+            <div><strong class="text-slate-800">소요 시간:</strong> 남산도서관까지 약 10~13분 (5개 정류장)</div>
+            <div><strong class="text-slate-800">이동 동선:</strong> 서울역 환승센터 ➔ 후암삼거리 ➔ 남산도서관 앞 하차</div>
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <a href="https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%EC%97%AD%EB%B2%84%EC%8A%A4%ED%99%98%EC%8A%B9%EC%84%BC%ED%84%B0%205%EB%B2%88" target="_blank" rel="noopener noreferrer" class="flex-1 py-2 text-center text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">
+              네이버 길찾기 <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]"></i>
+            </a>
+            <a href="https://map.kakao.com/?q=%EC%84%9C%EC%9A%B8%EC%97%AD%EB%B2%84%EC%8A%A4%ED%99%98%EC%8A%B9%EC%84%BC%ED%84%B0" target="_blank" rel="noopener noreferrer" class="flex-1 py-2 text-center text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold rounded-lg transition">
+              카카오맵 길찾기 <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- 405번 대체 -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+          <div class="flex items-center gap-2.5 mb-2">
+            <span class="w-9 h-9 rounded-xl bg-blue-500 text-white font-black flex items-center justify-center text-sm shadow-xs">405</span>
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm">간선 405번 버스</h3>
+              <p class="text-xs text-slate-500">배차간격: 약 10~17분</p>
+            </div>
+          </div>
+
+          <div class="mt-3 space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div><strong class="text-slate-800">탑승 위치:</strong> 서울역 <span class="text-slate-900 font-bold">4번 출구 앞 (가변 가로변)</span></div>
+            <div><strong class="text-slate-800">소요 시간:</strong> 남산도서관까지 약 12~15분</div>
+            <div><strong class="text-slate-800">이용 팁:</strong> 환승센터로 건너가지 않고 지상 4번 출구 쪽으로 바로 나왔을 때 즉시 탑승 가능</div>
+          </div>
+
+          <div class="mt-4">
+            <a href="https://map.naver.com/p/search/%EA%B0%84%EC%84%A0%EB%B2%84%EC%8A%A4%20405" target="_blank" rel="noopener noreferrer" class="block w-full py-2 text-center text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">
+              405번 실시간 위치 확인 <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 하차 후 소월정원 진입 팁 -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <h3 class="font-bold text-slate-900 text-sm mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-map-pin text-emerald-600"></i> 하차 정류장 및 하늘숲길 입구 찾는 법
+        </h3>
+        <p class="text-xs text-slate-600 leading-relaxed">
+          남산도서관 정류장에 내리면 눈앞에 남산도서관 본관이 보입니다. 도서관 우측 오솔길을 따라 약 20m만 걸어가면 꽃과 나무로 꾸며진 <strong>소월시비 정원(소월정원)</strong>이 나타납니다. 이 정원 바로 옆에 <strong>남산 하늘숲길 목재 데크로 입구</strong>가 연결되어 있습니다.
+        </p>
+      </div>
+    </section>
+
+    <!-- 탭 3: 2구간 (하늘숲길 걷기) -->
+    <section id="tab3" class="tab-content space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div>
+          <span class="text-emerald-600 font-bold text-xs uppercase tracking-wider">Step 02</span>
+          <h2 class="text-xl font-bold text-slate-900">남산 하늘숲길 무장애 트레킹</h2>
+        </div>
+        <button onclick="focusStepOnMap('step2')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-location-crosshairs"></i> 숲길 코스 보기
+        </button>
+      </div>
+
+      <!-- 하늘숲길 주요 스펙 3개 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="bg-white rounded-xl p-4 border border-slate-200 text-center">
+          <div class="w-10 h-10 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg mb-2">
+            <i class="fa-solid fa-wheelchair"></i>
+          </div>
+          <h4 class="font-bold text-sm text-slate-900">100% 무장애 데크</h4>
+          <p class="text-xs text-slate-500 mt-1">계단이 전혀 없는 완만한 지그재그 목재 덱</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 border border-slate-200 text-center">
+          <div class="w-10 h-10 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg mb-2">
+            <i class="fa-solid fa-ruler-horizontal"></i>
+          </div>
+          <h4 class="font-bold text-sm text-slate-900">총 연장 1.45km</h4>
+          <p class="text-xs text-slate-500 mt-1">소월정원 ➔ 남측순환로 접속 (약 35~45분)</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 border border-slate-200 text-center">
+          <div class="w-10 h-10 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg mb-2">
+            <i class="fa-solid fa-tree"></i>
+          </div>
+          <h4 class="font-bold text-sm text-slate-900">울창한 소나무 숲</h4>
+          <p class="text-xs text-slate-500 mt-1">공중 데크에서 즐기는 피톤치드 산림욕</p>
+        </div>
+      </div>
+
+      <!-- 보행 상세 안내 -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+          <i class="fa-solid fa-person-walking-arrow-right text-emerald-600"></i> 코스 세부 동선
+        </h3>
+        <ol class="space-y-2.5 text-xs text-slate-600 list-decimal list-inside leading-relaxed">
+          <li><strong>소월정원 입구 진입:</strong> 남산도서관 옆 무장애 데크 시작점 통과</li>
+          <li><strong>지그재그 공중 데크 산책:</strong> 울창한 숲 사이로 완만하게 고도를 올리는 친환경 덱 구간 (유모차/어르신 보행 편의)</li>
+          <li><strong>남측순환로 접속:</strong> 데크길 종료 지점에서 기존 남산 순환 산책로 포장길과 연결</li>
+          <li><strong>팔각정 & 타워 광장 도착:</strong> 순환로를 따라 약 10분 가볍게 걸어 올라가면 N서울타워 메인 광장 도착</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 탭 4: 3구간 (정상 맛집 & 카페) -->
+    <section id="tab4" class="tab-content space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div>
+          <span class="text-purple-600 font-bold text-xs uppercase tracking-wider">Step 03</span>
+          <h2 class="text-xl font-bold text-slate-900">N서울타워 점심 식당 & 전망 카페</h2>
+        </div>
+        <button onclick="focusStepOnMap('step3')" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-location-crosshairs"></i> 타워 위치 보기
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- 1) 부엉이돈가스 -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded">캐주얼 인기 맛집</span>
+              <span class="text-xs text-slate-500 font-medium">타워플라자 2층</span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-base">부엉이돈가스 남산타워점</h3>
+            <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+              바삭한 수제 카츠와 고소한 눈꽃치즈돈가스, 퓨전 파스타를 즐길 수 있어 트레킹 후 든든하게 점심 식사하기 좋습니다.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 text-xs">
+            <div class="flex justify-between text-slate-600">
+              <span>추천 메뉴</span>
+              <span class="font-bold text-slate-800">스노우치즈돈가스</span>
+            </div>
+            <div class="flex justify-between text-slate-600 mt-1">
+              <span>가격대</span>
+              <span class="text-slate-800">1.4만 ~ 1.8만원대</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2) 한쿡 -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded">전망 모던 한식</span>
+              <span class="text-xs text-slate-500 font-medium">본관 타워 3층</span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-base">한쿡 (HANCOOK)</h3>
+            <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+              통창 너머로 서울 전경을 내려다보며 정갈한 한식 반상과 그릴 코스를 즐길 수 있는 프리미엄 레스토랑입니다.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 text-xs">
+            <div class="flex justify-between text-slate-600">
+              <span>추천 메뉴</span>
+              <span class="font-bold text-slate-800">점심 한식 반상</span>
+            </div>
+            <div class="flex justify-between text-slate-600 mt-1">
+              <span>특징</span>
+              <span class="text-amber-700 font-medium">창가석 예약 권장</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3) 남산도서관 식당 -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="bg-slate-200 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded">초가성비 대안</span>
+              <span class="text-xs text-slate-500 font-medium">남산도서관 1층</span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-base">남산도서관 구내식당</h3>
+            <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+              등산 전이나 코스 복귀 시 정겨운 백반, 제육볶음, 돈가스, 라면 등을 가장 저렴하고 푸짐하게 즐길 수 있습니다.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 text-xs">
+            <div class="flex justify-between text-slate-600">
+              <span>가격대</span>
+              <span class="font-bold text-slate-800">5,500원 ~ 8,000원</span>
+            </div>
+            <div class="flex justify-between text-slate-600 mt-1">
+              <span>특징</span>
+              <span class="text-slate-600 font-medium">추억의 백반 & 분식</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 추천 카페: 스타벅스 서울타워점 -->
+      <div class="bg-gradient-to-r from-emerald-900 to-slate-900 text-white rounded-2xl p-5 shadow-xs">
+        <div class="flex flex-col sm:flex-row gap-4 items-center">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl shrink-0">
+            <i class="fa-solid fa-mug-hot"></i>
+          </div>
+          <div class="space-y-1 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">추천 뷰 카페</span>
+              <h4 class="text-base font-bold text-white">스타벅스 서울타워점</h4>
+            </div>
+            <p class="text-slate-300 leading-relaxed">
+              N서울타워 1층 광장 야외 데크 옆에 자리하여, 트레킹을 마친 뒤 테라스에서 시원한 커피를 마시며 여유롭게 쉴 수 있습니다. 순환버스 탑승장과도 도보 2분 거리입니다.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 탭 5: 4구간 (서울역 복귀) -->
+    <section id="tab5" class="tab-content space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div>
+          <span class="text-amber-600 font-bold text-xs uppercase tracking-wider">Step 04</span>
+          <h2 class="text-xl font-bold text-slate-900">N서울타워 ➔ 서울역 복귀 (순환버스 01A)</h2>
+        </div>
+        <button onclick="focusStepOnMap('step4')" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-location-crosshairs"></i> 복귀 경로 보기
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 추천 1: 01A 탑승 ➔ 남대문시장 하차 후 도보 (가장 빠름) -->
+        <div class="bg-white rounded-2xl p-5 border-2 border-amber-500 shadow-xs relative">
+          <div class="absolute top-0 right-0 bg-amber-600 text-white text-[11px] font-bold px-3 py-1 rounded-bl-xl">
+            가장 추천 (환승 없음)
+          </div>
+          <div class="flex items-center gap-2.5 mb-2">
+            <span class="w-9 h-9 rounded-xl bg-amber-600 text-white font-black flex items-center justify-center text-sm shadow-xs">01A</span>
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm">남산 순환버스 01A번</h3>
+              <p class="text-xs text-slate-500">배차간격: 약 7~10분 (자주 옴)</p>
+            </div>
+          </div>
+
+          <div class="mt-3 space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div><strong class="text-slate-800">탑승 위치:</strong> N서울타워 바로 아래 버스 종점 정류장</div>
+            <div><strong class="text-slate-800">하차 위치:</strong> <span class="text-amber-800 font-bold">'남대문시장·악세사리전문상가'</span> 정류장 하차 (약 12~14분)</div>
+            <div><strong class="text-slate-800">서울역 복귀:</strong> 하차 후 숭례문 방향 완만한 내리막길 도보 6~7분 ➔ 서울역 4번/7번 출구 도착</div>
+          </div>
+
+          <div class="mt-4">
+            <a href="https://map.naver.com/p/search/%EB%82%A8%EC%82%B0%EC%84%9C%EC%9A%B8%ED%83%80%EC%9B%8C%20%EC%A0%95%EB%A5%98%EC%9E%A5" target="_blank" rel="noopener noreferrer" class="block w-full py-2 text-center text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition shadow-xs">
+              01A번 실시간 위치 확인 <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- 대체: 01A/01B ➔ 402/405번 환승 (도보 최소화) -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+          <div class="flex items-center gap-2.5 mb-2">
+            <span class="w-9 h-9 rounded-xl bg-slate-800 text-white font-black flex items-center justify-center text-xs shadow-xs">환승</span>
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm">남산도서관 환승 코스</h3>
+              <p class="text-xs text-slate-500">걷는 거리를 최소화하고 싶을 때</p>
+            </div>
+          </div>
+
+          <div class="mt-3 space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div><strong class="text-slate-800">1구간 (버스 5분):</strong> 타워에서 01A 또는 01B번 탑승 ➔ '남산도서관' 첫 정류장 하차</div>
+            <div><strong class="text-slate-800">2구간 (환승 10분):</strong> 건너편 정류장에서 402번/405번 탑승 ➔ '서울역 환승센터' 바로 앞 하차</div>
+            <div><strong class="text-slate-800">장점:</strong> 수도권 통합환승 무료 적용, 서울역 바로 앞 하차</div>
+          </div>
+
+          <div class="mt-4 p-2.5 bg-blue-50 text-blue-900 rounded-lg text-xs flex items-center gap-2">
+            <i class="fa-solid fa-circle-check text-blue-600"></i>
+            <span>30분 이내 버스 환승 시 기본요금 할인 유지</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // 안내 지도를 원본 크기로 확대하고 모든 확대 버튼 상태를 함께 갱신합니다.
+    function setVectorZoom(zoomed) {
+      const container = document.getElementById('vectorMapContainer');
+      const label = zoomed ? '지도 전체 보기' : '지도 크게 보기';
+      container.classList.toggle('vector-zoomed', zoomed);
+      document.getElementById('btnVectorZoom').textContent = label;
+      document.getElementById('headerVectorZoomText').textContent = label;
+      document.getElementById('headerVectorZoomIcon').className = zoomed
+        ? 'fa-solid fa-magnifying-glass-minus text-emerald-600'
+        : 'fa-solid fa-magnifying-glass-plus text-emerald-600';
+      ['btnHeaderVectorZoom', 'btnVectorZoom'].forEach(id => {
+        document.getElementById(id).setAttribute('aria-pressed', String(zoomed));
+      });
+      container.scrollLeft = zoomed ? (container.scrollWidth - container.clientWidth) / 2 : 0;
+      container.scrollTop = zoomed ? (container.scrollHeight - container.clientHeight) / 2 : 0;
+      if (zoomed) showFloatingNotice('지도를 스크롤하거나 손가락으로 밀어 다른 위치를 확인하세요.');
+    }
+
+    function setupResponsiveHeader() {
+      const header = document.getElementById('pageHeader');
+      const updateHeight = () => {
+        document.documentElement.style.setProperty('--header-height', `${header.getBoundingClientRect().height}px`);
+      };
+      updateHeight();
+      if ('ResizeObserver' in window) new ResizeObserver(updateHeight).observe(header);
+      else window.addEventListener('resize', updateHeight);
+    }
+
+    // SVG 노드 클릭 핸들러
+    function handleSvgNodeClick(nodeKey) {
+      const msgs = {
+        seoulStation: "서울역: 주차 후 환승센터 5번홈에서 402번 탑승 (12분 소요)",
+        namsanLibrary: "남산도서관: 버스 하차 후 우측 소월정원으로 20m 이동",
+        sowolGarden: "소월정원: 계단 없는 1.45km 무장애 하늘숲길 데크 입구",
+        nSeoulTower: "N서울타워: 부엉이돈가스/한쿡 점심 및 순환01A 종점",
+        namdaemunMarket: "남대문시장: 01A 하차 후 숭례문 방향 도보 7분 서울역 복귀"
+      };
+      showFloatingNotice(msgs[nodeKey] || "구간 정보");
+    }
+
+    // 상단 플로팅 알림창
+    let noticeTimer = null;
+    function showFloatingNotice(text) {
+      const box = document.getElementById('mapNotice');
+      const label = document.getElementById('mapNoticeText');
+      label.textContent = text;
+      box.classList.remove('hidden');
+      box.classList.add('flex');
+
+      if (noticeTimer) clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => {
+        box.classList.add('hidden');
+        box.classList.remove('flex');
+      }, 4000);
+    }
+
+    // 구간별 안내를 지도 위에 표시합니다.
+    function focusStepOnMap(step) {
+      const noticeDict = {
+        step1: "1구간: 서울역 환승센터 5번홈 402번 / 4번출구 405번 버스 이동",
+        step2: "2구간: 소월정원 ➔ 하늘숲길 무장애 목재 덱 1.45km 산책 (35~45분)",
+        step3: "3구간: N서울타워 부엉이돈가스 & 스타벅스 서울타워점 휴식",
+        step4: "4구간: N서울타워 ➔ 순환01A ➔ 남대문시장 하차 ➔ 도보 7분 서울역"
+      };
+      showFloatingNotice(noticeDict[step]);
+    }
+
+    // 탭 전환 핸들러
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-slate-900', 'text-white', 'shadow-xs');
+        btn.classList.add('bg-slate-100', 'text-slate-600');
+      });
+
+      const activeBtn = document.getElementById(`nav-${tabId}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-slate-100', 'text-slate-600');
+        activeBtn.classList.add('bg-slate-900', 'text-white', 'shadow-xs');
+      }
+
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      const activeContent = document.getElementById(tabId);
+      if (activeContent) activeContent.classList.add('active');
+
+      if (tabId === 'tab1') {
+        setVectorZoom(false);
+      } else if (tabId === 'tab2') {
+        focusStepOnMap('step1');
+      } else if (tabId === 'tab3') {
+        focusStepOnMap('step2');
+      } else if (tabId === 'tab4') {
+        focusStepOnMap('step3');
+      } else if (tabId === 'tab5') {
+        focusStepOnMap('step4');
+      }
+    }
+
+    // 체크리스트 카운터
+    function setupChecklist() {
+      const checkboxes = document.querySelectorAll('.todo-item');
+      const progressLabel = document.getElementById('checkProgress');
+      function update() {
+        const total = checkboxes.length;
+        const done = document.querySelectorAll('.todo-item:checked').length;
+        progressLabel.textContent = `${done}/${total} 완료`;
+        if (done === total) {
+          progressLabel.className = 'text-xs font-semibold text-white bg-emerald-600 px-2.5 py-0.5 rounded-full';
+        } else {
+          progressLabel.className = 'text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full';
+        }
+      }
+      checkboxes.forEach(cb => cb.addEventListener('change', update));
+    }
+
+    // 초기 실행
+    window.addEventListener('DOMContentLoaded', () => {
+      setupResponsiveHeader();
+      setupChecklist();
+
+      ['btnHeaderVectorZoom', 'btnVectorZoom'].forEach(id => {
+        document.getElementById(id).addEventListener('click', () => {
+          setVectorZoom(!document.getElementById('vectorMapContainer').classList.contains('vector-zoomed'));
+        });
+      });
+
+      // 전체보기 리셋
+      document.getElementById('btnResetView').addEventListener('click', () => {
+        switchTab('tab1');
+      });
+    });
+  </script>
+</body>
+</html>
